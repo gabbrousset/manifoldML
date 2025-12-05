@@ -4,6 +4,9 @@
     import IntuitionBlock from "../../components/IntuitionBlock.svelte";
     import PolynomialRegression from "../../components/PolynomialRegression.svelte";
     import GaussianLikelihood from "../../components/GaussianLikelihood.svelte";
+    import CostDerivativeViz from "../../components/CostDerivativeViz.svelte";
+    import ProjectionViz from "../../components/ProjectionViz.svelte";
+    import BasisFunctionViz from "../../components/BasisFunctionViz.svelte";
 </script>
 
 <div class="max-w-4xl mx-auto space-y-16 pb-24 pt-10 px-6">
@@ -46,9 +49,36 @@
 
         <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
             <MathBlock
-                math={String.raw`X = \begin{pmatrix} (x^{(1)})^\top \\ (x^{(2)})^\top \\ \vdots \\ (x^{(N)})^\top \end{pmatrix}`}
+                math={String.raw`X = \begin{pmatrix} (x^{(1)})^\top \\ (x^{(2)})^\top \\ \vdots \\ (x^{(N)})^\top \end{pmatrix} = \begin{pmatrix} x^{(1)}_1 & x^{(1)}_2 & \dots & x^{(1)}_D \\ x^{(2)}_1 & x^{(2)}_2 & \dots & x^{(2)}_D \\ \vdots & \vdots & \ddots & \vdots \\ x^{(N)}_1 & x^{(N)}_2 & \dots & x^{(N)}_D \end{pmatrix}`}
                 block
             />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+                <h3
+                    class="text-sm font-medium text-slate-900 uppercase tracking-wide"
+                >
+                    Concrete Example
+                </h3>
+                <p class="text-slate-600 text-sm">
+                    Imagine predicting house prices (<MathBlock math="y" />)
+                    based on size (<MathBlock math="x_1" />) and age (<MathBlock
+                        math="x_2"
+                    />). For <MathBlock math="N=3" /> houses:
+                </p>
+            </div>
+            <div
+                class="bg-slate-50 p-4 rounded border border-slate-200 text-sm"
+            >
+                <MathBlock
+                    math={String.raw`X = \begin{pmatrix} 1 & 2100 & 5 \\ 1 & 1400 & 10 \\ 1 & 2800 & 2 \end{pmatrix}, \quad y = \begin{pmatrix} 400 \\ 250 \\ 600 \end{pmatrix}`}
+                    block
+                />
+                <p class="mt-2 text-xs text-slate-500 text-center">
+                    (Note the column of 1s for the intercept)
+                </p>
+            </div>
         </div>
 
         <p class="text-slate-700 leading-relaxed">
@@ -65,12 +95,22 @@
                 block
             />
         </div>
-        <p class="text-sm text-slate-500 italic">
-            Note: We often include a bias term <MathBlock math="w_0" /> by augmenting
-            <MathBlock math="x" /> with a <MathBlock math="1" /> (i.e., <MathBlock
-                math="x_0 = 1"
-            />).
-        </p>
+        <div class="bg-amber-50 border-l-4 border-amber-400 p-4">
+            <h3 class="font-medium text-amber-900 text-sm mb-1">
+                The Bias Trick (Intercept)
+            </h3>
+            <p class="text-amber-800 text-sm leading-relaxed">
+                The term <MathBlock math="w_0" /> allows the line to not pass through
+                the origin. To simplify notation, we augment the input vector <MathBlock
+                    math="x"
+                /> with a <MathBlock math="1" />
+                (i.e., <MathBlock math="x_0 = 1" />). This absorbs the bias into
+                the dot product:
+                <MathBlock
+                    math={String.raw`w^\top x = \sum_{j=0}^D w_j x_j`}
+                />.
+            </p>
+        </div>
 
         <IntuitionBlock title="What are the weights really?">
             <p class="mb-4">
@@ -121,13 +161,18 @@
                     math={String.raw`|y - \hat{y}|`}
                 />? Or cubic error?
             </p>
-            <p class="mb-4">
-                <strong>1. Geometry:</strong> Minimizing squared error is
-                equivalent to finding the <strong>orthogonal projection</strong>
-                of <MathBlock math="y" /> onto the subspace spanned by the columns
-                of <MathBlock math="X" />. It's the shortest path from the data
-                vector <MathBlock math="y" /> to the plane of possible predictions.
+            <p class="text-slate-700 leading-relaxed mb-6">
+                Geometrically, minimizing the squared error is equivalent to
+                finding the <strong>orthogonal projection</strong> of the target
+                vector
+                <MathBlock math="y" /> onto the subspace (plane) spanned by the columns
+                of <MathBlock math="X" />. It's the "shortest path" from the
+                data vector to the plane of possible predictions.
             </p>
+
+            <div class="my-8">
+                <ProjectionViz />
+            </div>
             <p>
                 <strong>2. Penalizing Outliers:</strong> Squaring punishes large
                 errors disproportionately. An error of 2 is
@@ -149,6 +194,17 @@
                 squared error.
             </p>
             <InteractiveRegression />
+        </div>
+
+        <div class="my-8">
+            <h3 class="text-lg font-medium text-slate-900 mb-4">
+                Visualizing the Cost and Derivative
+            </h3>
+            <p class="text-slate-600 mb-6">
+                The cost function <MathBlock math="J(w)" /> is a parabola. To find
+                the minimum, we look for where the slope (derivative) is zero.
+            </p>
+            <CostDerivativeViz />
         </div>
     </section>
 
@@ -233,6 +289,61 @@
     \end{aligned}`}
                 block
             />
+
+            <div class="mt-4 pt-4 border-t border-slate-200">
+                <p class="font-medium text-slate-900 mb-2">
+                    Intuition for the Normal Equation
+                </p>
+                <p class="text-sm text-slate-600 mb-2">
+                    Why is it called the <strong>"Normal"</strong> Equation?
+                </p>
+                <p class="text-sm text-slate-600 mb-2">
+                    Geometrically, the residual vector <MathBlock
+                        math="e = y - Xw"
+                    /> is the error. To minimize the error length, the residual vector
+                    must be <strong>orthogonal</strong> (or "normal") to the
+                    subspace spanned by the columns of <MathBlock math="X" />.
+                </p>
+                <p class="text-sm text-slate-600 mb-2">
+                    This orthogonality condition is written as <MathBlock
+                        math="X^\top (y - Xw) = 0"
+                    />, which directly leads to <MathBlock
+                        math="X^\top y = X^\top X w"
+                    />.
+                </p>
+                <p class="text-sm text-slate-600 mb-2 mt-4">
+                    Let's break down the terms:
+                </p>
+                <ul
+                    class="list-disc list-inside text-sm text-slate-600 space-y-1 ml-2"
+                >
+                    <li>
+                        <MathBlock math="X^\top y" /> represents the correlation
+                        between each feature and the target. It's asking: "How much
+                        does feature <MathBlock math="j" /> align with the target
+                        <MathBlock math="y" />?"
+                    </li>
+                    <li>
+                        <MathBlock math="X^\top X" /> is the
+                        <strong>Gram Matrix</strong>
+                        (or covariance matrix, roughly). It measures how features
+                        correlate with <em>each other</em>.
+                    </li>
+                    <li>
+                        So the equation says: The weights <MathBlock math="w" />
+                        must account for feature correlations (<MathBlock
+                            math="X^\top X"
+                        />) to match the feature-target correlations (<MathBlock
+                            math="X^\top y"
+                        />).
+                    </li>
+                    <li>
+                        Multiplying by <MathBlock math="(X^\top X)^{-1}" /> effectively
+                        "decorrelates" the features to find the true independent
+                        contribution of each one.
+                    </li>
+                </ul>
+            </div>
         </div>
 
         <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
@@ -241,6 +352,49 @@
             </p>
             <MathBlock
                 math={String.raw`w^* = (X^\top X)^{-1} X^\top y`}
+                block
+            />
+        </div>
+
+        <div class="mt-8 pt-8 border-t border-slate-200">
+            <h3 class="text-lg font-medium text-slate-900 mb-4">
+                Note: The Pseudo-Inverse
+            </h3>
+            <p class="text-slate-700 leading-relaxed mb-4">
+                The term <MathBlock math={String.raw`(X^\top X)^{-1} X^\top`} />
+                is often denoted as <MathBlock math={String.raw`X^\dagger`} /> (X-dagger),
+                the <strong>Moore-Penrose Pseudo-Inverse</strong>.
+            </p>
+            <p class="text-slate-700 leading-relaxed">
+                It generalizes the matrix inverse to non-square matrices. Even
+                if <MathBlock math={String.raw`X^\top X`} /> is not invertible (singular),
+                we can still compute <MathBlock math={String.raw`X^\dagger`} />
+                using SVD (Singular Value Decomposition) to find the unique minimum-norm
+                solution.
+            </p>
+        </div>
+
+        <div class="mt-8 pt-8 border-t border-slate-200">
+            <h3 class="text-lg font-medium text-slate-900 mb-4">
+                Extension: Multiple Targets
+            </h3>
+            <p class="text-slate-700 leading-relaxed mb-4">
+                If we want to predict multiple outputs (e.g., House Price AND
+                Days on Market), <MathBlock math="y" /> becomes a matrix <MathBlock
+                    math={String.raw`Y \in \mathbb{R}^{N \times K}`}
+                />.
+            </p>
+            <MathBlock
+                math={String.raw`Y = \begin{pmatrix} 400 & 30 \\ 250 & 45 \\ 600 & 15 \end{pmatrix}`}
+                block
+            />
+            <p class="text-slate-700 leading-relaxed mt-4 mb-4">
+                The weights become a matrix <MathBlock
+                    math={String.raw`W \in \mathbb{R}^{D \times K}`}
+                />. The math remains exactly the same:
+            </p>
+            <MathBlock
+                math={String.raw`W^* = (X^\top X)^{-1} X^\top Y`}
                 block
             />
         </div>
@@ -334,26 +488,7 @@
         </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="space-y-4">
-                <h3 class="text-lg font-medium text-slate-900">
-                    The Pseudo-Inverse
-                </h3>
-                <p class="text-slate-600 text-sm leading-relaxed">
-                    In the Normal Equation, the term <MathBlock
-                        math={String.raw`(X^\top X)^{-1} X^\top`}
-                    /> is often denoted as <MathBlock
-                        math={String.raw`X^\dagger`}
-                    /> (X-dagger), the
-                    <strong>Moore-Penrose Pseudo-Inverse</strong>. It
-                    generalizes the concept of a matrix inverse to non-square
-                    matrices. If <MathBlock math={String.raw`X^\top X`} /> is not
-                    invertible (singular), we can still solve for <MathBlock
-                        math="w"
-                    /> using SVD (Singular Value Decomposition).
-                </p>
-            </div>
-
-            <div class="space-y-4">
+            <div class="space-y-4 md:col-span-2">
                 <h3 class="text-lg font-medium text-slate-900">
                     Non-Linear Basis Functions
                 </h3>
@@ -363,11 +498,31 @@
                     />, not necessarily the input <MathBlock math="x" />. We can
                     fit non-linear data by transforming <MathBlock math="x" /> using
                     a basis function <MathBlock math={String.raw`\phi(x)`} />.
+                </p>
+
+                <div
+                    class="bg-slate-50 p-6 rounded-lg border border-slate-200 my-6"
+                >
+                    <h4 class="text-sm font-medium text-slate-900 mb-4">
+                        Visualizing the Transformation
+                    </h4>
+                    <BasisFunctionViz />
+                </div>
+
+                <p class="text-slate-600 text-sm leading-relaxed">
                     For example, polynomial regression uses <MathBlock
                         math={String.raw`\phi(x) = [1, x, x^2, \dots]`}
                     />. The model becomes <MathBlock
                         math={String.raw`y = w^\top \phi(x)`}
                     />, which is still linear in <MathBlock math="w" />.
+                </p>
+                <p class="text-slate-600 text-sm leading-relaxed mt-2">
+                    <strong>Feature Engineering:</strong> This is powerful. We
+                    can manually create features like <MathBlock
+                        math="x_1 \cdot x_2"
+                    /> (interaction) or <MathBlock math="\sin(x_1)" /> to capture
+                    complex relationships while keeping the optimization problem
+                    convex and easy to solve.
                 </p>
                 <div class="mt-4">
                     <PolynomialRegression />

@@ -15,9 +15,22 @@
         { x: 90, y: 75, id: 5 },
     ]);
 
-    function calculateRegression(pts: Point[]) {
+    let forceIntercept = $state(false);
+
+    function calculateRegression(pts: Point[], forceZero: boolean) {
         const n = pts.length;
         if (n < 2) return { m: 0, b: 0 };
+
+        if (forceZero) {
+            // Formula for regression through origin: m = sum(xy) / sum(x^2)
+            let sumXY = 0;
+            let sumXX = 0;
+            for (const p of pts) {
+                sumXY += p.x * p.y;
+                sumXX += p.x * p.x;
+            }
+            return { m: sumXY / sumXX, b: 0 };
+        }
 
         let sumX = 0,
             sumY = 0,
@@ -39,7 +52,7 @@
         return { m, b };
     }
 
-    let { m, b } = $derived(calculateRegression(points));
+    let { m, b } = $derived(calculateRegression(points, forceIntercept));
 
     // Cost calculation
     let cost = $derived(
@@ -191,12 +204,26 @@
     </div>
 
     <div class="mt-4 flex justify-between items-center text-sm text-slate-600">
-        <div>Click to add points, click point to remove.</div>
-        <div class="font-mono bg-slate-100 px-2 py-1 rounded text-xs">
-            J(w) = {cost.toFixed(2)}
+        <div class="flex items-center gap-4">
+            <span>Click to add points.</span>
+            <label
+                class="flex items-center gap-2 cursor-pointer hover:text-slate-900"
+            >
+                <input
+                    type="checkbox"
+                    bind:checked={forceIntercept}
+                    class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Force Intercept = 0</span>
+            </label>
         </div>
-        <div class="font-mono bg-slate-100 px-2 py-1 rounded text-xs">
-            y = {m.toFixed(2)}x + {b.toFixed(2)}
+        <div class="flex gap-4">
+            <div class="font-mono bg-slate-100 px-2 py-1 rounded text-xs">
+                J(w) = {cost.toFixed(2)}
+            </div>
+            <div class="font-mono bg-slate-100 px-2 py-1 rounded text-xs">
+                y = {m.toFixed(2)}x + {b.toFixed(2)}
+            </div>
         </div>
     </div>
 </div>

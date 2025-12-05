@@ -16,7 +16,8 @@
         { x: 90, y: 80, id: 5 },
     ]);
 
-    let degree = $state(2);
+    let degree = $state(1);
+    let maxDegree = 10;
 
     let weights = $derived(polynomialRegression(points, degree));
 
@@ -124,7 +125,7 @@
             <input
                 type="range"
                 min="1"
-                max="5"
+                max="10"
                 bind:value={degree}
                 class="w-24 accent-indigo-600"
             />

@@ -1,6 +1,8 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import { fade } from "svelte/transition";
     import MathBlock from "./MathBlock.svelte";
+    import InteractiveDataSpace from "./InteractiveDataSpace.svelte";
     import { polynomialRegression } from "../lib/math";
 
     interface Point {
@@ -9,334 +11,201 @@
         id: number;
     }
 
-    let points = $state<Point[]>([
-        { x: 15, y: 20, id: 1 },
-        { x: 35, y: 45, id: 2 },
-        { x: 55, y: 40, id: 3 },
-        { x: 75, y: 70, id: 4 },
-        { x: 90, y: 85, id: 5 },
+    // State
+    let points: Point[] = $state([
+        { x: 10, y: 20, id: 1 },
+        { x: 20, y: 40, id: 2 },
+        { x: 40, y: 60, id: 3 },
+        { x: 75, y: 60, id: 4 },
     ]);
 
-    // Manual line control
-    let m = $state(0.8);
-    let b = $state(10);
-    let showBestFit = $state(false);
+    // Line parameters: y = w1*x + w0
+    let w1 = $state(0.8);
+    let w0 = $state(10);
 
-    // Best fit calculation (MLE for Gaussian noise is OLS)
-    let bestFitParams = $derived(polynomialRegression(points, 1)); // returns [b, m]
-    let bestB = $derived(bestFitParams[0]);
-    let bestM = $derived(bestFitParams[1]);
+    // Likelihood calculation
+    let sigma = $state(10); // Noise parameter
 
-    let container: HTMLDivElement;
-    let width = $state(100);
-    let height = $state(100);
-
-    let isDraggingLine = false;
-    let dragType: "rotate" | "translate" | null = null;
-    let lastY = 0;
-    let draggingPointId = $state<number | null>(null);
-
-    function gaussian(x: number, mu: number, sigma: number): number {
+    function gaussian(x: number, mu: number, sigma: number) {
         return (
             (1 / (sigma * Math.sqrt(2 * Math.PI))) *
             Math.exp(-0.5 * Math.pow((x - mu) / sigma, 2))
         );
     }
 
-    const SIGMA = 15;
+    let likelihoods = $derived(
+        points.map((p) => {
+            const y_pred = w1 * p.x + w0;
+            return gaussian(p.y, y_pred, sigma);
+        }),
+    );
 
-    function handleLineDragStart(e: MouseEvent, type: "rotate" | "translate") {
-        e.stopPropagation();
-        isDraggingLine = true;
-        dragType = type;
-        lastY = e.clientY;
+    let totalLogLikelihood = $derived(
+        likelihoods.reduce((acc, l) => acc + Math.log(l + 1e-10), 0),
+    );
 
-        window.addEventListener("mousemove", handleLineDrag);
-        window.addEventListener("mouseup", handleLineDragEnd);
-    }
+    // Derived for visualization
+    let maxLikelihood = $derived(Math.max(...likelihoods));
 
-    function handleLineDrag(e: MouseEvent) {
-        if (!isDraggingLine) return;
+    // Helper to generate Gaussian path
+    function getGaussianPath(
+        p: Point,
+        y_pred: number,
+        sigma: number,
+        prob: number,
+        toPx: any,
+    ) {
+        // We want to draw a symmetric bell curve centered on the vertical line x = p.x
+        // The width of the bell is determined by the probability density at each y
+        const steps = 100; // More steps for smoother full-height curve
+        let path = "";
+        const scale = 300; // Visual scaling factor
 
-        const deltaY = lastY - e.clientY; // Positive = up
-        lastY = e.clientY;
+        // Draw from y=0 to y=100 (full vertical range)
+        // Right side
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const y_val = t * 100; // 0 to 100
+            const x_val = p.x + gaussian(y_val, y_pred, sigma) * scale;
 
-        // Sensitivity
-        const sensitivity = 0.5;
-
-        if (dragType === "translate") {
-            b += deltaY * sensitivity * 0.2;
-        } else if (dragType === "rotate") {
-            m += deltaY * sensitivity * 0.005;
+            const coords = toPx(x_val, y_val);
+            if (i === 0) path += `M ${coords.x} ${coords.y}`;
+            else path += ` L ${coords.x} ${coords.y}`;
         }
-    }
 
-    let justFinishedDrag = false;
+        // Left side (mirror)
+        for (let i = steps; i >= 0; i--) {
+            const t = i / steps;
+            const y_val = t * 100; // 0 to 100
+            const x_val = p.x - gaussian(y_val, y_pred, sigma) * scale;
 
-    function handleLineDragEnd() {
-        isDraggingLine = false;
-        dragType = null;
-        justFinishedDrag = true;
-        setTimeout(() => (justFinishedDrag = false), 50);
-        window.removeEventListener("mousemove", handleLineDrag);
-        window.removeEventListener("mouseup", handleLineDragEnd);
-    }
+            const coords = toPx(x_val, y_val);
+            path += ` L ${coords.x} ${coords.y}`;
+        }
 
-    // Point Dragging Logic
-    function handlePointDragStart(e: MouseEvent, id: number) {
-        e.stopPropagation();
-        draggingPointId = id;
-
-        const startX = e.clientX;
-        const startY = e.clientY;
-        let hasMoved = false;
-
-        const onMove = (moveEvent: MouseEvent) => {
-            if (!container) return;
-            const dx = moveEvent.clientX - startX;
-            const dy = moveEvent.clientY - startY;
-            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
-
-            const rect = container.getBoundingClientRect();
-            let x = ((moveEvent.clientX - rect.left) / rect.width) * 100;
-            let y = 100 - ((moveEvent.clientY - rect.top) / rect.height) * 100;
-
-            x = Math.max(0, Math.min(100, x));
-            y = Math.max(0, Math.min(100, y));
-
-            points = points.map((p) => (p.id === id ? { ...p, x, y } : p));
-        };
-
-        const onUp = (upEvent: MouseEvent) => {
-            draggingPointId = null;
-            if (hasMoved) {
-                justFinishedDrag = true;
-                setTimeout(() => (justFinishedDrag = false), 50);
-            }
-            window.removeEventListener("mousemove", onMove);
-            window.removeEventListener("mouseup", onUp);
-
-            if (!hasMoved) {
-                points = points.filter((p) => p.id !== id);
-            }
-        };
-
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
-    }
-
-    function onContainerClick(e: MouseEvent) {
-        if (isDraggingLine || draggingPointId !== null || justFinishedDrag)
-            return;
-        // Don't add point if clicking on line handles (handled by stopPropagation, but good to be safe)
-
-        const rect = container.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = 100 - ((e.clientY - rect.top) / rect.height) * 100;
-        points.push({ x, y, id: Date.now() });
-    }
-
-    // Helper to map data coordinates (0-100) to pixels
-    function toPx(x: number, y: number) {
-        return {
-            x: (x / 100) * width,
-            y: height - (y / 100) * height,
-        };
+        path += " Z";
+        return path;
     }
 </script>
 
 <div
     class="w-full max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-slate-200"
 >
-    <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-semibold">Visualizing Likelihood</h3>
-        <div class="flex items-center space-x-2">
-            <label
-                class="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer select-none"
-            >
+    <div class="flex justify-between items-center mb-6">
+        <h3 class="text-lg font-semibold text-slate-900">
+            Visualizing Likelihood
+        </h3>
+        <div class="flex items-center gap-4">
+            <!-- Noise Control -->
+            <div class="flex items-center gap-2 text-sm text-slate-600">
+                <span class="font-mono">σ: {sigma}</span>
                 <input
-                    type="checkbox"
-                    bind:checked={showBestFit}
-                    class="rounded text-indigo-600 focus:ring-indigo-500"
+                    type="range"
+                    min="1"
+                    max="20"
+                    bind:value={sigma}
+                    class="w-24 accent-indigo-600"
                 />
-                <span>Show Best Fit (MLE)</span>
-            </label>
+            </div>
         </div>
     </div>
 
-    <p class="text-sm text-slate-600 mb-4">
-        Drag the <span class="text-indigo-600 font-bold">blue line</span> to
-        move it, or the <span class="text-indigo-600 font-bold">handles</span>
-        to rotate. The
-        <span class="text-emerald-600 font-bold">green curves</span> show the
-        probability distribution of <MathBlock math="y" /> given <MathBlock
-            math="x"
-        />. Notice how the likelihood (the height of the curve at the dot) is
-        maximized when the line passes close to the point. Click background to
-        add points, click points to remove.
-    </p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Main Visualization -->
+        <div class="md:col-span-2 aspect-square">
+            <InteractiveDataSpace
+                bind:points
+                bind:w={w1}
+                bind:b={w0}
+                xDomain={[0, 100]}
+                yDomain={[0, 100]}
+                handleXs={[5, 95]}
+            >
+                {#snippet children({ toPx })}
+                    <!-- Gaussians -->
+                    {#each points as p, i}
+                        {@const y_pred = w1 * p.x + w0}
+                        {@const prob = likelihoods[i]}
 
-    <!-- Container -->
-    <div
-        bind:this={container}
-        bind:clientWidth={width}
-        bind:clientHeight={height}
-        class="relative aspect-video bg-slate-50 rounded-lg border border-slate-200 overflow-hidden select-none cursor-crosshair"
-        onclick={onContainerClick}
-        role="button"
-        tabindex="0"
-        onkeydown={(e) => {}}
-    >
-        <!-- Grid Lines -->
-        <div
-            class="absolute inset-0 grid grid-cols-10 grid-rows-10 pointer-events-none"
-        >
-            {#each Array(100) as _, i}
-                <div
-                    class="border-r border-b border-slate-200 opacity-50"
-                ></div>
-            {/each}
+                        <!-- Gaussian Curve -->
+                        <path
+                            d={getGaussianPath(p, y_pred, sigma, prob, toPx)}
+                            fill={prob > 0.01 ? "#22c55e" : "#94a3b8"}
+                            fill-opacity="0.4"
+                            stroke={prob > 0.01 ? "#22c55e" : "#94a3b8"}
+                            stroke-width="1.5"
+                            vector-effect="non-scaling-stroke"
+                        />
+
+                        <!-- Horizontal Line at p.y crossing the distribution -->
+                        {@const scale = 300}
+                        {@const x_dist = gaussian(p.y, y_pred, sigma) * scale}
+                        <line
+                            x1={toPx(p.x - x_dist, p.y).x}
+                            y1={toPx(p.x - x_dist, p.y).y}
+                            x2={toPx(p.x + x_dist, p.y).x}
+                            y2={toPx(p.x + x_dist, p.y).y}
+                            stroke={prob > 0.01 ? "#22c55e" : "#ef4444"}
+                            stroke-width="1.5"
+                            vector-effect="non-scaling-stroke"
+                        />
+                    {/each}
+                {/snippet}
+            </InteractiveDataSpace>
         </div>
 
-        <!-- SVG Layer -->
-        <svg
-            class="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
-            viewBox="0 0 {width} {height}"
-        >
-            <!-- Best Fit Line -->
-            {#if showBestFit}
-                <line
-                    x1={toPx(0, bestB).x}
-                    y1={toPx(0, bestB).y}
-                    x2={toPx(100, bestM * 100 + bestB).x}
-                    y2={toPx(100, bestM * 100 + bestB).y}
-                    stroke="#10b981"
-                    stroke-width="3"
-                    stroke-dasharray="6 4"
-                    stroke-linecap="round"
-                    opacity="0.7"
-                />
-            {/if}
+        <!-- Stats Panel -->
+        <div class="space-y-4">
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                <div
+                    class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2"
+                >
+                    Total Log Likelihood
+                </div>
+                <div class="text-2xl font-mono font-bold text-slate-900">
+                    {totalLogLikelihood.toFixed(2)}
+                </div>
+                <div
+                    class="mt-2 w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"
+                >
+                    <div
+                        class="bg-indigo-600 h-full transition-all duration-300"
+                        style="width: {Math.min(
+                            100,
+                            Math.max(0, (totalLogLikelihood + 50) * 2),
+                        )}%"
+                    ></div>
+                </div>
+            </div>
 
-            <!-- Regression Line -->
-            <line
-                role="button"
-                tabindex="0"
-                x1={toPx(0, b).x}
-                y1={toPx(0, b).y}
-                x2={toPx(100, m * 100 + b).x}
-                y2={toPx(100, m * 100 + b).y}
-                stroke="#4f46e5"
-                stroke-width="4"
-                stroke-linecap="round"
-                class="pointer-events-auto cursor-move hover:stroke-indigo-500 transition-colors"
-                onmousedown={(e) => handleLineDragStart(e, "translate")}
-                onkeydown={(e) => {}}
-            />
+            <div class="space-y-2">
+                {#each points as p, i}
+                    <div
+                        class="flex items-center justify-between text-xs group hover:bg-slate-50 p-1 rounded transition-colors"
+                    >
+                        <span class="font-mono text-slate-500">P{i + 1}</span>
+                        <div
+                            class="flex-1 mx-2 h-1 bg-slate-100 rounded-full overflow-hidden"
+                        >
+                            <div
+                                class="h-full bg-green-500 transition-all duration-300"
+                                style="width: {likelihoods[i] * 2500}%"
+                            ></div>
+                        </div>
+                        <span class="font-mono font-medium text-slate-700">
+                            {(likelihoods[i] * 100).toFixed(1)}%
+                        </span>
+                    </div>
+                {/each}
+            </div>
 
-            <!-- Rotation Handles -->
-            <circle
-                role="button"
-                tabindex="0"
-                cx={toPx(5, m * 5 + b).x}
-                cy={toPx(5, m * 5 + b).y}
-                r="6"
-                fill="transparent"
-                class="pointer-events-auto cursor-ns-resize"
-                onmousedown={(e) => handleLineDragStart(e, "rotate")}
-                onkeydown={(e) => {}}
-            />
-            <circle
-                role="button"
-                tabindex="0"
-                cx={toPx(95, m * 95 + b).x}
-                cy={toPx(95, m * 95 + b).y}
-                r="6"
-                fill="transparent"
-                class="pointer-events-auto cursor-ns-resize"
-                onmousedown={(e) => handleLineDragStart(e, "rotate")}
-                onkeydown={(e) => {}}
-            />
-
-            <!-- Gaussians -->
-            {#each points as p}
-                {@const predictedY = m * p.x + b}
-                {@const center = toPx(p.x, predictedY)}
-
-                <!-- 
-                   Draw bell curve vertically centered at 'center'.
-                   The 'height' of the bell curve extends horizontally.
-                   We iterate 'y' in data space, convert to pixels, and calculate x-offset in pixels.
-                -->
-
-                <!-- Right side -->
-                <path
-                    d={(() => {
-                        let d = "";
-                        for (let yOffset = -30; yOffset <= 30; yOffset += 1) {
-                            const yVal = predictedY + yOffset;
-                            const pdf = gaussian(yVal, predictedY, 10);
-                            const xOffsetPx = pdf * 1000;
-                            const pt = toPx(p.x, yVal);
-                            if (yOffset === -30) d = `M ${pt.x} ${pt.y}`;
-                            else d += ` L ${pt.x + xOffsetPx} ${pt.y}`;
-                        }
-                        return d;
-                    })()}
-                    fill="none"
-                    stroke="#10b981"
-                    stroke-width="1.5"
-                    opacity="0.6"
-                />
-                <!-- Left side -->
-                <path
-                    d={(() => {
-                        let d = "";
-                        for (let yOffset = -30; yOffset <= 30; yOffset += 1) {
-                            const yVal = predictedY + yOffset;
-                            const pdf = gaussian(yVal, predictedY, 10);
-                            const xOffsetPx = pdf * 1000;
-                            const pt = toPx(p.x, yVal);
-                            if (yOffset === -30) d = `M ${pt.x} ${pt.y}`;
-                            else d += ` L ${pt.x - xOffsetPx} ${pt.y}`;
-                        }
-                        return d;
-                    })()}
-                    fill="none"
-                    stroke="#10b981"
-                    stroke-width="1.5"
-                    opacity="0.6"
-                />
-
-                <!-- Likelihood Bar -->
-                {@const likelihood = gaussian(p.y, predictedY, 10)}
-                {@const barLen = likelihood * 1000}
-                {@const ptData = toPx(p.x, p.y)}
-
-                <line
-                    x1={ptData.x - barLen}
-                    y1={ptData.y}
-                    x2={ptData.x + barLen}
-                    y2={ptData.y}
-                    stroke="#059669"
-                    stroke-width="2"
-                />
-            {/each}
-        </svg>
-
-        <!-- Points -->
-        {#each points as p (p.id)}
-            <button
-                class="absolute w-3 h-3 bg-slate-900 rounded-full shadow-sm border border-white z-10 hover:scale-125 transition-transform cursor-pointer"
-                style="
-                    left: {p.x}%;
-                    bottom: {p.y}%;
-                    margin-left: -6px;
-                    margin-bottom: -6px;
-                "
-                onmousedown={(e) => handlePointDragStart(e, p.id)}
-                aria-label="Data point"
-            ></button>
-        {/each}
+            <div class="text-xs text-slate-400 mt-4 leading-relaxed">
+                <strong class="text-slate-600">Goal:</strong> Maximize the total
+                log likelihood by adjusting the line. The
+                <span class="text-green-600 font-bold">green curves</span> show the
+                probability of observing each point given the line and noise level
+                σ.
+            </div>
+        </div>
     </div>
 </div>
