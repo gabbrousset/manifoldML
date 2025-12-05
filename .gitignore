@@ -27,5 +27,3 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-# Backup
-react_backup/

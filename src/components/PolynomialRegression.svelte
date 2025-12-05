@@ -1,5 +1,6 @@
 <script lang="ts">
     import { fade } from "svelte/transition";
+    import { polynomialRegression } from "../lib/math";
 
     interface Point {
         x: number;
@@ -8,44 +9,24 @@
     }
 
     let points = $state<Point[]>([
-        { x: 10, y: 20, id: 1 },
+        { x: 10, y: 80, id: 1 },
         { x: 30, y: 40, id: 2 },
-        { x: 50, y: 35, id: 3 },
-        { x: 70, y: 80, id: 4 },
-        { x: 90, y: 75, id: 5 },
+        { x: 50, y: 20, id: 3 },
+        { x: 70, y: 40, id: 4 },
+        { x: 90, y: 80, id: 5 },
     ]);
 
-    function calculateRegression(pts: Point[]) {
-        const n = pts.length;
-        if (n < 2) return { m: 0, b: 0 };
+    let degree = $state(2);
 
-        let sumX = 0,
-            sumY = 0,
-            sumXY = 0,
-            sumXX = 0;
-        for (const p of pts) {
-            sumX += p.x;
-            sumY += p.y;
-            sumXY += p.x * p.y;
-            sumXX += p.x * p.x;
+    let weights = $derived(polynomialRegression(points, degree));
+
+    function evaluatePolynomial(w: number[], x: number): number {
+        let y = 0;
+        for (let i = 0; i < w.length; i++) {
+            y += w[i] * Math.pow(x, i);
         }
-
-        const denominator = n * sumXX - sumX * sumX;
-        if (denominator === 0) return { m: 0, b: 0 };
-
-        const m = (n * sumXY - sumX * sumY) / denominator;
-        const b = (sumY - m * sumX) / n;
-
-        return { m, b };
+        return y;
     }
-
-    let { m, b } = $derived(calculateRegression(points));
-
-    // Cost calculation
-    let cost = $derived(
-        points.reduce((acc, p) => acc + Math.pow(p.y - (m * p.x + b), 2), 0) /
-            (2 * points.length),
-    );
 
     let container: HTMLDivElement;
     let width = $state(100);
@@ -58,6 +39,33 @@
             y: height - (y / 100) * height,
         };
     }
+
+    let pathData = $derived.by(() => {
+        let d = "";
+        // Iterate in pixel steps or data steps?
+        // Data steps (0-100) is fine, but we need to map to pixels.
+        for (let x = 0; x <= 100; x += 1) {
+            const y = evaluatePolynomial(weights, x);
+            const pt = toPx(x, y);
+
+            if (x === 0) {
+                d += `M ${pt.x} ${pt.y}`;
+            } else {
+                d += ` L ${pt.x} ${pt.y}`;
+            }
+        }
+        return d;
+    });
+
+    // Cost calculation
+    let cost = $derived(
+        points.reduce(
+            (acc, p) =>
+                acc + Math.pow(p.y - evaluatePolynomial(weights, p.x), 2),
+            0,
+        ) /
+            (2 * points.length),
+    );
 
     function onContainerClick(e: MouseEvent) {
         if (draggingId !== null) return;
@@ -96,7 +104,6 @@
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
 
-            // If we didn't move significantly, treat as click to remove
             if (!hasMoved) {
                 points = points.filter((p) => p.id !== id);
             }
@@ -110,7 +117,19 @@
 <div
     class="w-full max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-slate-200"
 >
-    <h3 class="text-lg font-semibold mb-4">Interactive Demo</h3>
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold">Polynomial Regression</h3>
+        <div class="flex items-center space-x-2">
+            <span class="text-sm text-slate-600">Degree: {degree}</span>
+            <input
+                type="range"
+                min="1"
+                max="5"
+                bind:value={degree}
+                class="w-24 accent-indigo-600"
+            />
+        </div>
+    </div>
 
     <!-- Container -->
     <div
@@ -134,29 +153,27 @@
             {/each}
         </div>
 
-        <!-- Regression Line -->
+        <!-- Regression Curve -->
         <svg
             class="absolute inset-0 w-full h-full pointer-events-none"
             viewBox="0 0 {width} {height}"
         >
-            <line
-                x1={toPx(0, b).x}
-                y1={toPx(0, b).y}
-                x2={toPx(100, m * 100 + b).x}
-                y2={toPx(100, m * 100 + b).y}
+            <path
+                d={pathData}
+                fill="none"
                 stroke="#4f46e5"
                 stroke-width="4"
                 stroke-linecap="round"
+                stroke-linejoin="round"
             />
         </svg>
 
         <!-- Residuals -->
         {#each points as p (p.id)}
-            {@const predictedY = m * p.x + b}
+            {@const predictedY = evaluatePolynomial(weights, p.x)}
             {@const pt = toPx(p.x, p.y)}
             {@const predPt = toPx(p.x, predictedY)}
 
-            <!-- Draw residual as SVG line for better control -->
             <svg
                 class="absolute inset-0 w-full h-full pointer-events-none"
                 viewBox="0 0 {width} {height}"
@@ -194,9 +211,6 @@
         <div>Click to add points, click point to remove.</div>
         <div class="font-mono bg-slate-100 px-2 py-1 rounded text-xs">
             J(w) = {cost.toFixed(2)}
-        </div>
-        <div class="font-mono bg-slate-100 px-2 py-1 rounded text-xs">
-            y = {m.toFixed(2)}x + {b.toFixed(2)}
         </div>
     </div>
 </div>
