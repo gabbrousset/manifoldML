@@ -43,13 +43,13 @@
                 math={String.raw`x^{(n)}`}
             /> is a <MathBlock math="D" />-dimensional column vector. Define the
             <strong>Design Matrix</strong>
-            <MathBlock math={String.raw`X \in \mathbb{R}^{N \times D}`} />
-            by concatenating all instances as rows.
+            <MathBlock math={String.raw`X \in \mathbb{R}^{N \times (D+1)}`} />
+            by concatenating all instances as rows (augmented with a 1 for the bias).
         </p>
 
         <div class="bg-slate-50 p-6 rounded-lg border border-slate-200">
             <MathBlock
-                math={String.raw`X = \begin{pmatrix} (x^{(1)})^\top \\ (x^{(2)})^\top \\ \vdots \\ (x^{(N)})^\top \end{pmatrix} = \begin{pmatrix} x^{(1)}_1 & x^{(1)}_2 & \dots & x^{(1)}_D \\ x^{(2)}_1 & x^{(2)}_2 & \dots & x^{(2)}_D \\ \vdots & \vdots & \ddots & \vdots \\ x^{(N)}_1 & x^{(N)}_2 & \dots & x^{(N)}_D \end{pmatrix}`}
+                math={String.raw`X = \begin{pmatrix} (x^{(1)})^\top \\ (x^{(2)})^\top \\ \vdots \\ (x^{(N)})^\top \end{pmatrix} = \begin{pmatrix} 1 & x^{(1)}_1 & \dots & x^{(1)}_D \\ 1 & x^{(2)}_1 & \dots & x^{(2)}_D \\ \vdots & \vdots & \ddots & \vdots \\ 1 & x^{(N)}_1 & \dots & x^{(N)}_D \end{pmatrix}`}
                 block
             />
         </div>
@@ -83,7 +83,7 @@
 
         <p class="text-slate-700 leading-relaxed">
             The goal is to learn a weight vector <MathBlock
-                math={String.raw`w \in \mathbb{R}^D`}
+                math={String.raw`w \in \mathbb{R}^{D+1}`}
             /> such that the prediction function <MathBlock
                 math={String.raw`f_w(x)`}
             /> approximates the target <MathBlock math="y" />. The linear model
@@ -155,32 +155,6 @@
             for mathematical convenience, as it cancels out when taking the derivative.
         </p>
 
-        <IntuitionBlock title="Why squared error? (Geometric Intuition)">
-            <p class="mb-4">
-                Why not absolute error <MathBlock
-                    math={String.raw`|y - \hat{y}|`}
-                />? Or cubic error?
-            </p>
-            <p class="text-slate-700 leading-relaxed mb-6">
-                Geometrically, minimizing the squared error is equivalent to
-                finding the <strong>orthogonal projection</strong> of the target
-                vector
-                <MathBlock math="y" /> onto the subspace (plane) spanned by the columns
-                of <MathBlock math="X" />. It's the "shortest path" from the
-                data vector to the plane of possible predictions.
-            </p>
-
-            <div class="my-8">
-                <ProjectionViz />
-            </div>
-            <p>
-                <strong>2. Penalizing Outliers:</strong> Squaring punishes large
-                errors disproportionately. An error of 2 is
-                <strong>4 times</strong> worse than an error of 1. This forces the
-                model to pay attention to outliers (which can be both good and bad!).
-            </p>
-        </IntuitionBlock>
-
         <div class="my-8">
             <h3 class="text-lg font-medium text-slate-900 mb-4">
                 Interactive Visualization: Minimizing Residuals
@@ -195,6 +169,45 @@
             </p>
             <InteractiveRegression />
         </div>
+
+        <IntuitionBlock title="Why squared error? (Geometric Intuition)">
+            <p class="mb-4">
+                Why not absolute error <MathBlock
+                    math={String.raw`|y - \hat{y}|`}
+                />? Or cubic error?
+            </p>
+            <p class="text-slate-700 leading-relaxed mb-6">
+                Geometrically, minimizing the squared error is equivalent to
+                finding the <strong>orthogonal projection</strong> of the target
+                vector
+                <MathBlock math="y" /> onto the subspace (plane) spanned by the columns
+                Given the subspace (plane) spanned by the columns of <MathBlock
+                    math="X"
+                />, we want to find the point <MathBlock
+                    math={String.raw`\hat{y}`}
+                /> in that plane that is closest to <MathBlock math="y" />.
+            </p>
+            <p
+                class="text-slate-700 leading-relaxed mb-6 border-l-4 border-indigo-400 pl-4 bg-indigo-50/50 p-3 rounded-r"
+            >
+                <strong>Crucial Connection:</strong> The red dashed lines you
+                saw in the <em>Minimizing Residuals</em> graph (Data Space)
+                represents the <strong>individual components</strong> of the single
+                red dashed vector you see below (Vector Space). Minimizing the sum
+                of squared lengths (there) is exactly the same as minimizing the
+                length of this one vector (here).
+            </p>
+
+            <div class="my-8">
+                <ProjectionViz />
+            </div>
+            <p>
+                <strong>2. Penalizing Outliers:</strong> Squaring punishes large
+                errors disproportionately. An error of 2 is
+                <strong>4 times</strong> worse than an error of 1. This forces the
+                model to pay attention to outliers (which can be both good and bad!).
+            </p>
+        </IntuitionBlock>
 
         <div class="my-8">
             <h3 class="text-lg font-medium text-slate-900 mb-4">
@@ -373,31 +386,6 @@
                 solution.
             </p>
         </div>
-
-        <div class="mt-8 pt-8 border-t border-slate-200">
-            <h3 class="text-lg font-medium text-slate-900 mb-4">
-                Extension: Multiple Targets
-            </h3>
-            <p class="text-slate-700 leading-relaxed mb-4">
-                If we want to predict multiple outputs (e.g., House Price AND
-                Days on Market), <MathBlock math="y" /> becomes a matrix <MathBlock
-                    math={String.raw`Y \in \mathbb{R}^{N \times K}`}
-                />.
-            </p>
-            <MathBlock
-                math={String.raw`Y = \begin{pmatrix} 400 & 30 \\ 250 & 45 \\ 600 & 15 \end{pmatrix}`}
-                block
-            />
-            <p class="text-slate-700 leading-relaxed mt-4 mb-4">
-                The weights become a matrix <MathBlock
-                    math={String.raw`W \in \mathbb{R}^{D \times K}`}
-                />. The math remains exactly the same:
-            </p>
-            <MathBlock
-                math={String.raw`W^* = (X^\top X)^{-1} X^\top Y`}
-                block
-            />
-        </div>
     </section>
 
     <!-- 4. Probabilistic Interpretation -->
@@ -543,6 +531,38 @@
                         math={String.raw`\nabla_w (w^\top A w) = (A + A^\top)w`}
                     />
                     <MathBlock math={String.raw`\nabla_w (w^\top b) = b`} />
+                </div>
+            </div>
+
+            <div class="space-y-4 md:col-span-2">
+                <h3 class="text-lg font-medium text-slate-900">
+                    Extension: Multiple Targets
+                </h3>
+                <p class="text-slate-600 text-sm leading-relaxed mb-4">
+                    If we want to predict multiple outputs (e.g., House Price
+                    AND Days on Market), <MathBlock math="y" /> becomes a matrix
+                    <MathBlock
+                        math={String.raw`Y \in \mathbb{R}^{N \times K}`}
+                    />.
+                </p>
+                <div
+                    class="bg-slate-50 p-4 rounded border border-slate-200 text-sm mb-4"
+                >
+                    <MathBlock
+                        math={String.raw`Y = \begin{pmatrix} 400 & 30 \\ 250 & 45 \\ 600 & 15 \end{pmatrix}`}
+                        block
+                    />
+                </div>
+                <p class="text-slate-600 text-sm leading-relaxed mb-4">
+                    The weights become a matrix <MathBlock
+                        math={String.raw`W \in \mathbb{R}^{D \times K}`}
+                    />. The math remains exactly the same:
+                </p>
+                <div class="bg-indigo-50 border border-indigo-100 rounded p-2">
+                    <MathBlock
+                        math={String.raw`W^* = (X^\top X)^{-1} X^\top Y`}
+                        block
+                    />
                 </div>
             </div>
         </div>

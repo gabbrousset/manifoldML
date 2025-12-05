@@ -1,5 +1,6 @@
 <script lang="ts">
     import { fade } from "svelte/transition";
+    import MathBlock from "./MathBlock.svelte";
 
     interface Point {
         x: number;
@@ -145,6 +146,13 @@
                     class="border-r border-b border-slate-200 opacity-50"
                 ></div>
             {/each}
+        </div>
+
+        <!-- Badge -->
+        <div
+            class="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur-sm border border-slate-200 rounded text-xs font-medium text-slate-500 z-20 pointer-events-none"
+        >
+            Data Space (<MathBlock math={String.raw`\mathbb{R}^D`} />)
         </div>
 
         <!-- Regression Line -->
